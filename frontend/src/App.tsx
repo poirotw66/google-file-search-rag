@@ -220,7 +220,7 @@ function App() {
 
         {/* Main Chat Area */}
         <main className="flex-1 flex flex-col min-w-0">
-          <ChatWindow sessionId={sessionId!} hasFiles={uploadedFiles.length > 0} />
+          <ChatWindow sessionId={sessionId!} hasFiles={uploadedFiles.length > 0} uploadedFileNames={uploadedFiles} />
         </main>
       </div>
     </div>
