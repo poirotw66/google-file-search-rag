@@ -14,23 +14,44 @@ export default function FileUpload({
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
     if (!file) return;
 
     setIsUploading(true);
+    setUploadProgress(0);
+
+    // Simulate progress for better UX
+    const progressInterval = setInterval(() => {
+      setUploadProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return prev;
+        }
+        return prev + Math.random() * 15;
+      });
+    }, 500);
+
     try {
       const result: UploadResponse = await api.uploadFile(
         sessionId,
         file,
         file.name
       );
-      onUploadSuccess(result.file_name);
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+      setTimeout(() => {
+        onUploadSuccess(result.file_name);
+        setIsUploading(false);
+        setUploadProgress(0);
+      }, 300);
     } catch (error: any) {
-      onUploadError(error.response?.data?.detail || '上傳失敗');
-    } finally {
+      clearInterval(progressInterval);
+      onUploadError(error.response?.data?.detail || '上傳失敗，請重試');
       setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -38,9 +59,9 @@ export default function FileUpload({
     e.preventDefault();
     setIsDragging(false);
 
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      handleFile(file);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      handleFile(files[0]);
     }
   };
 
@@ -49,7 +70,8 @@ export default function FileUpload({
     setIsDragging(true);
   };
 
-  const handleDragLeave = () => {
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
     setIsDragging(false);
   };
 
@@ -58,15 +80,17 @@ export default function FileUpload({
     if (file) {
       handleFile(file);
     }
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   return (
     <div
-      className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-        isDragging
-          ? 'border-blue-500 bg-blue-50'
-          : 'border-gray-300 hover:border-gray-400'
-      } ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+      className={`upload-zone rounded-xl p-6 text-center cursor-pointer relative overflow-hidden ${
+        isDragging ? 'dragging' : ''
+      } ${isUploading ? 'pointer-events-none' : ''}`}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -78,25 +102,51 @@ export default function FileUpload({
         className="hidden"
         onChange={handleFileSelect}
         disabled={isUploading}
-        accept=".pdf,.doc,.docx,.txt,.md,.jpg,.jpeg,.png"
+        accept=".pdf,.doc,.docx,.txt,.md,.jpg,.jpeg,.png,.json,.csv,.html,.xml"
       />
+
+      {/* Progress bar */}
+      {isUploading && (
+        <div className="absolute inset-x-0 bottom-0 h-1 bg-[var(--bg-dark)]">
+          <div
+            className="h-full bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] transition-all duration-300"
+            style={{ width: `${uploadProgress}%` }}
+          />
+        </div>
+      )}
+
       {isUploading ? (
-        <div className="text-gray-500">
-          <div className="animate-pulse">上傳處理中...</div>
-          <div className="text-xs mt-1">檔案正在上傳並建立索引，請稍候</div>
+        <div className="py-2">
+          <div className="w-10 h-10 mx-auto mb-3 relative">
+            <svg className="animate-spin text-[var(--primary)]" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+              <path d="M12 2C6.48 2 2 6.48 2 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </div>
+          <p className="text-sm text-[var(--text-primary)] font-medium">上傳處理中...</p>
+          <p className="text-xs text-[var(--text-secondary)] mt-1">
+            {uploadProgress < 90 ? '正在上傳檔案' : '正在建立索引'}
+          </p>
         </div>
       ) : (
         <>
-          <div className="text-4xl mb-2">📄</div>
-          <div className="text-gray-600">
-            點擊或拖放檔案到此處上傳
+          <div className={`w-12 h-12 mx-auto mb-3 rounded-xl flex items-center justify-center transition-all ${
+            isDragging 
+              ? 'bg-[var(--accent)]/20 scale-110' 
+              : 'bg-gradient-to-br from-[var(--primary)]/10 to-[var(--secondary)]/10'
+          }`}>
+            <svg className={`w-6 h-6 transition-colors ${isDragging ? 'text-[var(--accent)]' : 'text-[var(--primary)]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
           </div>
-          <div className="text-sm text-gray-400 mt-2">
-            支援 PDF、Word、圖片等格式
-          </div>
+          <p className="text-sm text-[var(--text-primary)] font-medium mb-1">
+            {isDragging ? '放開以上傳' : '拖放或點擊上傳'}
+          </p>
+          <p className="text-xs text-[var(--text-secondary)]">
+            支援 PDF、Word、TXT、Markdown 等格式
+          </p>
         </>
       )}
     </div>
   );
 }
-
