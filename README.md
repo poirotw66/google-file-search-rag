@@ -1,145 +1,157 @@
-# Google File Search RAG 應用
+# DocuChat — Google File Search RAG
 
-這是一個基於 Google Gemini File Search API 的 RAG (Retrieval Augmented Generation) 應用，允許使用者上傳檔案並透過對話介面進行提問。
+以 [Gemini File Search](https://ai.google.dev/gemini-api/docs/file-search) 為核心的文件問答應用：上傳文件後即可多輪對話，回覆會附上可核對的引用來源。
 
-## 功能特色
+## 功能
 
-- 📄 支援多種檔案格式上傳（PDF、Word、圖片等）
-- 💬 即時對話介面
-- 🔍 基於上傳檔案的語意搜尋
-- 📚 顯示 AI 回應的引用來源
-- 🎨 現代化的 React + Tailwind CSS 介面
+- **文件問答**：語意檢索上傳內容，並以 File Search 接地回答
+- **多模態 Store**：建立 Store 時使用 `gemini-embedding-2`（文字 + PNG/JPEG）
+- **多輪對話**：Session 保存歷史；支援 SSE 串流回覆
+- **Session 續用**：`localStorage` 還原對話與檔案列表；可開「新對話」
+- **上傳體驗**：多檔並行（最多 3）、真實 HTTP 傳輸進度、暫時性錯誤自動重試
+- **檔案管理**：側邊欄刪除會同步刪除遠端 File Search document
+- **引用體驗**：檔名、PDF 頁碼、圖片片段（`media_id`）預覽
+- **介面**：DocuChat atelier 風格（Fraunces / Sora + 松綠強調色）
 
 ## 技術架構
 
-- **Backend**: FastAPI + Google Gemini SDK
-- **Frontend**: React + TypeScript + Vite + Tailwind CSS
-- **API**: Google Gemini File Search API
+| 層級 | 技術 |
+|------|------|
+| Backend | FastAPI、`google-genai`、SQLite session store |
+| Frontend | React、TypeScript、Vite、Tailwind CSS |
+| 模型 | 查詢：`gemini-3.6-flash`；Embedding：`models/gemini-embedding-2` |
+| API | Gemini File Search（`generateContent` + File Search tool） |
 
-## 環境設定
+```
+上傳檔案 → File Search Store（索引）
+                ↓
+使用者提問 → generateContent / stream（含對話歷史）
+                ↓
+回覆 + grounding（頁碼 / media_id）
+```
 
-### 1. 建立 `.env` 檔案
+## 快速開始
 
-在專案根目錄建立 `.env` 檔案：
+### 1. 環境變數
+
+專案根目錄建立 `.env`：
 
 ```env
 GEMINI_API_KEY=your_api_key_here
+
+# 可選
+# GEMINI_MODEL=gemini-3.6-flash
+# SESSION_TTL_HOURS=24
+# SESSION_DB_PATH=data/sessions.db
+# MAX_HISTORY_MESSAGES=40
+# UPLOAD_TIMEOUT_SECONDS=180
 ```
 
-### 2. 安裝後端依賴
+### 2. 安裝依賴
 
 ```bash
-cd backend
-pip install -r requirements.txt
+cd backend && pip install -r requirements.txt
+cd ../frontend && npm install
 ```
 
-### 3. 安裝前端依賴
+### 3. 啟動
 
-```bash
-cd frontend
-npm install
-```
-
-## 執行方式
-
-### 啟動後端服務
+後端（http://localhost:8000，文件：http://localhost:8000/docs）：
 
 ```bash
 cd backend
 python main.py
-```
-
-或者使用 uvicorn：
-
-```bash
-cd backend
+# 或
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-後端 API 文件可在 http://localhost:8000/docs 查看
-
-### 啟動前端服務
+前端（http://localhost:5173）：
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-前端應用會在 http://localhost:5173 開啟
-
 ## 使用方式
 
-1. 開啟前端應用（http://localhost:5173）
-2. 系統會自動建立一個新的對話 session
-3. 在左側上傳檔案（支援拖放或點擊上傳）
-4. 在右側對話視窗輸入問題
-5. AI 會基於上傳的檔案內容進行回答
+1. 開啟前端；若本機已有 session 會自動還原，否則建立新 session
+2. 左側上傳 PDF / Markdown / 圖片等（可一次多檔）
+3. 右側提問；回答會串流顯示，並可展開引用詳情
+4. 需要重來時點「新對話」（會清理舊的遠端 Store）
 
 ## 專案結構
 
 ```
 google-file-search-rag/
 ├── backend/
-│   ├── main.py              # FastAPI 應用入口
-│   ├── routes/              # API 路由
-│   │   ├── session.py       # Session 管理
-│   │   ├── upload.py        # 檔案上傳
-│   │   └── chat.py          # 對話 API
-│   ├── services/            # 業務邏輯
-│   │   ├── gemini.py        # Gemini API 封裝
-│   │   └── session_store.py # Session 狀態管理
+│   ├── main.py                 # FastAPI 入口、TTL 清理
+│   ├── routes/
+│   │   ├── session.py          # Session CRUD / 續用
+│   │   ├── upload.py           # 上傳與刪檔
+│   │   └── chat.py             # 對話、串流、media
+│   ├── services/
+│   │   ├── gemini.py           # File Search / generateContent
+│   │   └── session_store.py    # SQLite session
+│   ├── tests/
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── App.tsx          # 主應用元件
-│   │   ├── components/      # React 元件
+│   │   ├── App.tsx
+│   │   ├── components/
 │   │   │   ├── ChatWindow.tsx
 │   │   │   ├── FileUpload.tsx
 │   │   │   ├── InputArea.tsx
 │   │   │   └── MessageList.tsx
-│   │   └── api/
-│   │       └── client.ts    # API 客戶端
+│   │   ├── api/client.ts
+│   │   └── index.css
 │   └── package.json
+├── data/                       # 本機 SQLite（gitignore）
 └── README.md
 ```
 
 ## API 端點
 
-### Session 管理
-- `POST /api/session/create` - 建立新 session
-- `GET /api/session/{session_id}` - 取得 session 資訊（含對話歷史與檔案列表，供續用）
-- `POST /api/session/{session_id}/clear-messages` - 清除對話歷史
-- `DELETE /api/session/{session_id}` - 刪除 session
+### Session
+- `POST /api/session/create` — 建立 session + File Search Store
+- `GET /api/session/{session_id}` — 取得歷史、檔案列表（續用）
+- `POST /api/session/{session_id}/clear-messages` — 清除對話（保留檔案）
+- `DELETE /api/session/{session_id}` — 刪除 session 與遠端 Store
 
-### 檔案上傳
-- `POST /api/upload/file` - 上傳檔案到指定 session
-- `DELETE /api/upload/file` - 刪除單一文件（同步刪遠端 document）
+### 上傳
+- `POST /api/upload/file` — 上傳並索引到該 session 的 Store
+- `DELETE /api/upload/file` — 刪除單一 document（需 `session_id` + `document_name` 或 `store_display_name`）
 
 ### 對話
-- `POST /api/chat/message` - 發送訊息並取得完整 AI 回應
-- `POST /api/chat/message/stream` - SSE 串流回覆（token / done / error）
-- `GET /api/chat/media` - 下載引用圖片片段（`media_id`）
+- `POST /api/chat/message` — 完整回覆
+- `POST /api/chat/message/stream` — SSE：`token` / `done` / `error`
+- `GET /api/chat/media` — 下載引用圖片（`session_id` + `media_id`）
+
+## 測試
+
+```bash
+cd backend
+python -m pytest tests/ -v
+```
+
+## 支援格式
+
+依官方 File Search 規格，常見可用格式包括：
+
+- PDF、Word（`.doc` / `.docx`）
+- Markdown、純文字、CSV、HTML、JSON
+- 圖片：多模態檢索建議 **PNG / JPEG**（Store 需 `gemini-embedding-2`）
+
+完整列表見官方文件或專案內 `api_doc.md`（可能非最新快照）。
 
 ## 注意事項
 
-- 前端會把 `session_id` 存在 `localStorage`，重新整理後會自動還原對話與檔案
-- 每個 session 會建立一個獨立的 File Search Store
-- Session 與對話歷史會寫入本機 SQLite（預設 `data/sessions.db`）
-- 閒置超過 `SESSION_TTL_HOURS`（預設 24）會自動清理 session 與遠端 Store
-- 查詢模型預設 `gemini-3.6-flash`，Store embedding 使用 `gemini-embedding-2`
-- 檔案上傳會等待 Google API 處理完成後才回傳成功
-- 側邊欄刪除檔案會同步刪除 File Search document
-- 上傳支援多檔並行（預設最多 3）、HTTP 真實傳輸進度，以及可重試的暫時性失敗
+- 每個 session 對應一個獨立 File Search Store
+- Session 資料預設寫入 `data/sessions.db`；閒置超過 `SESSION_TTL_HOURS`（預設 24）會清本機紀錄與遠端 Store
+- 上傳會等待 Google 索引完成才回傳成功；前端在傳輸完成後會顯示「建立索引中」
+- 單機 SQLite + 單一 worker 適用本專案規模；多 worker 部署需改為共享 session store
+- 生產環境請另行設定 CORS、域名與金鑰管理
 
-## 支援的檔案格式
+## 參考
 
-根據 Google File Search API 文件，支援的格式包括：
-- PDF (application/pdf)
-- Word 文件 (.doc, .docx)
-- Markdown (.md)
-- 圖片（多模態檢索建議 PNG / JPEG；Store 使用 `gemini-embedding-2`）
-- 文字檔案 (.txt)
-- 以及其他多種格式（詳見 api_doc.md）
-
-查詢模型預設為 `gemini-3.6-flash`。
-
+- [Gemini File Search 文件](https://ai.google.dev/gemini-api/docs/file-search)
+- [generateContent 版 File Search](https://ai.google.dev/gemini-api/docs/generate-content/file-search)
