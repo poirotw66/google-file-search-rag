@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Noto+Sans+TC:wght@300;400;500;600&family=Sora:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Noto+Sans+TC:wght@300;400;500;600&family=Noto+Serif+TC:wght@500;600;700&family=Sora:wght@300;400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -25,7 +25,7 @@
   --radius: 18px;
   --shadow-soft: 0 10px 40px rgba(24, 32, 43, 0.06);
   --shadow-lift: 0 18px 50px rgba(24, 32, 43, 0.1);
-  --font-display: 'Fraunces', Georgia, serif;
+  --font-display: 'Fraunces', 'Noto Serif TC', Georgia, serif;
   --font-body: 'Sora', 'Noto Sans TC', sans-serif;
 
   /* Compatibility aliases used across components */
