@@ -126,3 +126,20 @@ def test_extract_grounding_resolves_titles_and_page_numbers() -> None:
 def test_strip_store_suffix() -> None:
     assert _strip_store_suffix("report.pdf-a1b2c3d4") == "report.pdf"
     assert _strip_store_suffix("plain") == "plain"
+
+
+def test_get_gemini_service_is_singleton(monkeypatch) -> None:
+    import services.gemini as gemini_mod
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    gemini_mod._gemini_service = None
+
+    class FakeClient:
+        def __init__(self, api_key: str) -> None:
+            self.api_key = api_key
+
+    monkeypatch.setattr(gemini_mod.genai, "Client", FakeClient)
+    first = gemini_mod.get_gemini_service()
+    second = gemini_mod.get_gemini_service()
+    assert first is second
+    gemini_mod._gemini_service = None

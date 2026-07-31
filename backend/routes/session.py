@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+import asyncio
 import uuid
 
-from services.gemini import GeminiService, GeminiServiceError
+from services.gemini import GeminiServiceError, get_gemini_service
 from services.session_store import sessions
 
 router = APIRouter(prefix="/api/session", tags=["session"])
@@ -33,10 +34,13 @@ def _public_files(session: dict) -> list[dict]:
 async def create_session(data: SessionCreate = SessionCreate()):
     """建立新的對話 session"""
     try:
-        gemini_service = GeminiService()
+        gemini_service = get_gemini_service()
         session_id = str(uuid.uuid4())
         display_name = data.display_name or f"session-{session_id[:8]}"
-        file_search_store_name = gemini_service.create_file_search_store(display_name)
+        file_search_store_name = await asyncio.to_thread(
+            gemini_service.create_file_search_store,
+            display_name,
+        )
         sessions.create(session_id, file_search_store_name)
         return SessionResponse(
             session_id=session_id,
@@ -84,8 +88,10 @@ async def delete_session(session_id: str):
 
     store_name = session["file_search_store_name"]
     try:
-        gemini_service = GeminiService()
-        gemini_service.delete_file_search_store(store_name)
+        await asyncio.to_thread(
+            get_gemini_service().delete_file_search_store,
+            store_name,
+        )
     except GeminiServiceError as exc:
         sessions.delete(session_id)
         raise HTTPException(status_code=502, detail=str(exc)) from exc

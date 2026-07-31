@@ -129,6 +129,7 @@ google-file-search-rag/
 - 查詢模型預設 `gemini-3.6-flash`，Store embedding 使用 `gemini-embedding-2`
 - 檔案上傳會等待 Google API 處理完成後才回傳成功
 - 側邊欄刪除檔案會同步刪除 File Search document
+- 上傳支援多檔並行（預設最多 3）、HTTP 真實傳輸進度，以及可重試的暫時性失敗
 
 ## 支援的檔案格式
 

@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Optional
 
@@ -5,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
-from services.gemini import GeminiService, GeminiServiceError
+from services.gemini import GeminiServiceError, get_gemini_service
 from services.session_store import sessions
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -40,12 +41,13 @@ async def send_message(data: ChatMessage):
         raise HTTPException(status_code=400, detail="訊息不可為空")
 
     try:
-        gemini_service = GeminiService()
-        result = gemini_service.generate_content(
-            message=message,
-            file_search_store_names=[session["file_search_store_name"]],
-            history=session["messages"],
-            file_name_map=sessions.file_name_map(data.session_id),
+        gemini_service = get_gemini_service()
+        result = await asyncio.to_thread(
+            gemini_service.generate_content,
+            message,
+            [session["file_search_store_name"]],
+            session["messages"],
+            sessions.file_name_map(data.session_id),
         )
         sessions.append_message(data.session_id, "user", message)
         sessions.append_message(data.session_id, "model", result["text"])
@@ -67,13 +69,12 @@ async def send_message_stream(data: ChatMessage):
     if not message:
         raise HTTPException(status_code=400, detail="訊息不可為空")
 
-    gemini_service = GeminiService()
+    gemini_service = get_gemini_service()
     history = list(session["messages"])
     file_name_map = sessions.file_name_map(data.session_id)
     store_name = session["file_search_store_name"]
 
     def event_stream():
-        final_text = ""
         try:
             for event in gemini_service.generate_content_stream(
                 message=message,
@@ -113,11 +114,10 @@ async def get_citation_media(
         raise HTTPException(status_code=403, detail="media_id 不屬於此 session")
 
     try:
-        data = GeminiService().download_media(media_id)
+        data = await asyncio.to_thread(get_gemini_service().download_media, media_id)
     except GeminiServiceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    # ponytail: File Search media is typically PNG/JPEG; sniff lightly
     media_type = "image/jpeg"
     if data[:8] == b"\x89PNG\r\n\x1a\n":
         media_type = "image/png"

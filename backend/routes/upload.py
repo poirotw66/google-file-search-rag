@@ -1,7 +1,9 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form
+import asyncio
 from typing import Optional
 
-from services.gemini import GeminiService, GeminiServiceError
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form
+
+from services.gemini import GeminiServiceError, get_gemini_service
 from services.session_store import sessions
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
@@ -13,12 +15,11 @@ async def upload_file(
     file: UploadFile = File(...),
     display_name: Optional[str] = Form(None),
 ):
-    """上傳檔案到指定的 session"""
+    """上傳檔案到指定的 session（阻塞型 Google 呼叫放到 thread pool）"""
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found 或已過期，請重新整理頁面")
 
     try:
-        gemini_service = GeminiService()
         session = sessions.get(session_id)
         assert session is not None
         store_name = session["file_search_store_name"]
@@ -33,13 +34,16 @@ async def upload_file(
         ) or "uploaded_file"
         file_display_name = display_name or original_filename.split("/")[-1]
         mime_type = file.content_type
+        gemini_service = get_gemini_service()
 
-        result = gemini_service.upload_file_bytes_to_store(
-            file_bytes=file_bytes,
-            file_search_store_name=store_name,
-            display_name=file_display_name,
-            file_name=safe_filename,
-            mime_type=mime_type,
+        # ponytail: SDK upload+poll is sync; offload so parallel uploads don't block the loop
+        result = await asyncio.to_thread(
+            gemini_service.upload_file_bytes_to_store,
+            file_bytes,
+            store_name,
+            file_display_name,
+            safe_filename,
+            mime_type,
         )
 
         sessions.add_file(
@@ -89,9 +93,8 @@ async def delete_file(
     remote_name = removed.get("document_name") or document_name
     if remote_name:
         try:
-            GeminiService().delete_document(remote_name)
+            await asyncio.to_thread(get_gemini_service().delete_document, remote_name)
         except GeminiServiceError as exc:
-            # Restore local record if remote delete failed
             sessions.add_file(
                 session_id=session_id,
                 original_name=removed["original_name"],
