@@ -7,6 +7,8 @@ export interface Message {
   citations?: Array<{
     uri?: string;
     title?: string;
+    page_number?: number | null;
+    media_id?: string | null;
   }>;
   isError?: boolean;
 }
@@ -120,12 +122,20 @@ export default function MessageList({
                         引用來源
                       </div>
                       <div className="space-y-1">
-                        {message.citations.map((citation, idx) => (
-                          <div key={idx} className="text-xs opacity-80 flex items-center gap-1">
-                            <span className="w-1 h-1 rounded-full bg-current opacity-50"></span>
-                            {citation.title || citation.uri || '文件引用'}
-                          </div>
-                        ))}
+                        {message.citations.map((citation, idx) => {
+                          const label = citation.title || citation.uri || '文件引用';
+                          const page =
+                            citation.page_number != null
+                              ? ` · p.${citation.page_number}`
+                              : '';
+                          const media = citation.media_id ? ' · 圖片片段' : '';
+                          return (
+                            <div key={idx} className="text-xs opacity-80 flex items-center gap-1">
+                              <span className="w-1 h-1 rounded-full bg-current opacity-50"></span>
+                              {label}{page}{media}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}

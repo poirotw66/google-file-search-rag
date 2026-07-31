@@ -1,19 +1,28 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 
 const apiClient = axios.create({
   baseURL: '/api',
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10 秒超時
+  timeout: 15000,
 });
 
-// 添加請求攔截器來記錄錯誤
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.code === 'ECONNREFUSED' || error.message.includes('Network Error')) {
-      error.message = '無法連接到後端服務。請確認後端是否正在運行在 http://localhost:8000';
+  (error: AxiosError | Error) => {
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        error.message = '請求逾時，請稍後再試';
+      } else if (error.code === 'ECONNREFUSED' || error.message.includes('Network Error')) {
+        error.message =
+          '無法連接到後端服務。請確認後端是否正在運行在 http://localhost:8000';
+      } else if (typeof error.response?.data === 'object' && error.response.data) {
+        const detail = (error.response.data as { detail?: string }).detail;
+        if (detail) {
+          error.message = detail;
+        }
+      }
     }
     return Promise.reject(error);
   }
@@ -24,17 +33,19 @@ export interface SessionResponse {
   file_search_store_name: string;
 }
 
-export interface ChatMessage {
-  session_id: string;
-  message: string;
-}
-
 export interface ChatResponse {
   response: string;
   grounding_metadata?: {
     web_search_queries?: string[];
     grounding_chunks?: Array<{
       retrieved_context?: {
+        uri?: string;
+        title?: string;
+        page_number?: number | null;
+        media_id?: string | null;
+        text?: string | null;
+      };
+      web?: {
         uri?: string;
         title?: string;
       };
@@ -45,11 +56,21 @@ export interface ChatResponse {
 export interface UploadResponse {
   status: string;
   file_name: string;
+  store_display_name?: string;
   operation_name?: string;
 }
 
+export function getErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    return error.message || fallback;
+  }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
+}
+
 export const api = {
-  // Session APIs
   createSession: async (displayName?: string): Promise<SessionResponse> => {
     const response = await apiClient.post<SessionResponse>('/session/create', {
       display_name: displayName,
@@ -67,7 +88,11 @@ export const api = {
     return response.data;
   },
 
-  // Upload API
+  clearMessages: async (sessionId: string) => {
+    const response = await apiClient.post(`/session/${sessionId}/clear-messages`);
+    return response.data;
+  },
+
   uploadFile: async (
     sessionId: string,
     file: File,
@@ -87,13 +112,12 @@ export const api = {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 120000, // 檔案上傳需要較長時間，設定 2 分鐘超時
+        timeout: 180000,
       }
     );
     return response.data;
   },
 
-  // Chat API
   sendMessage: async (
     sessionId: string,
     message: string
@@ -105,10 +129,9 @@ export const api = {
         message,
       },
       {
-        timeout: 60000, // 對話可能需要較長時間，設定 1 分鐘超時
+        timeout: 90000,
       }
     );
     return response.data;
   },
 };
-

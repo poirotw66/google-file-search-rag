@@ -41,3 +41,7 @@ Thumbs.db
 # Logs
 *.log
 
+# Local session DB
+data/sessions.db
+data/*.db
+
