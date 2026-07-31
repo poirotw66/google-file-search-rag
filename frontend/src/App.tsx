@@ -1,39 +1,83 @@
 import { useState, useEffect, useRef } from 'react';
 import FileUpload from './components/FileUpload';
 import ChatWindow from './components/ChatWindow';
-import { api, getErrorMessage } from './api/client';
+import {
+  api,
+  getErrorMessage,
+  SESSION_STORAGE_KEY,
+  SessionFile,
+} from './api/client';
 
 function App() {
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<SessionFile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isDeletingFile, setIsDeletingFile] = useState(false);
   const sessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     const initializeSession = async () => {
       try {
+        const savedId = localStorage.getItem(SESSION_STORAGE_KEY);
+        if (savedId) {
+          try {
+            const existing = await api.getSession(savedId);
+            if (cancelled) return;
+            sessionIdRef.current = existing.session_id;
+            localStorage.setItem(SESSION_STORAGE_KEY, existing.session_id);
+            setSessionId(existing.session_id);
+            setUploadedFiles(existing.files || []);
+            setError(null);
+            return;
+          } catch {
+            localStorage.removeItem(SESSION_STORAGE_KEY);
+          }
+        }
+
         const session = await api.createSession();
+        if (cancelled) return;
         sessionIdRef.current = session.session_id;
+        localStorage.setItem(SESSION_STORAGE_KEY, session.session_id);
         setSessionId(session.session_id);
+        setUploadedFiles([]);
         setError(null);
       } catch (err: unknown) {
         console.error('Session creation error:', err);
-        setError('無法建立 session: ' + getErrorMessage(err, '無法連接到後端服務'));
+        if (!cancelled) {
+          setError('無法建立 session: ' + getErrorMessage(err, '無法連接到後端服務'));
+        }
       }
     };
 
     initializeSession();
-
+    // ponytail: do not delete session on unmount — refresh must resume via localStorage
     return () => {
-      if (sessionIdRef.current) {
-        api.deleteSession(sessionIdRef.current).catch(console.error);
-      }
+      cancelled = true;
     };
   }, []);
 
-  const handleUploadSuccess = (fileName: string) => {
-    setUploadedFiles((prev) => [...prev, fileName]);
+  const startNewSession = async () => {
+    const previous = sessionIdRef.current;
+    setError(null);
+    try {
+      const session = await api.createSession();
+      sessionIdRef.current = session.session_id;
+      localStorage.setItem(SESSION_STORAGE_KEY, session.session_id);
+      setSessionId(session.session_id);
+      setUploadedFiles([]);
+      if (previous) {
+        api.deleteSession(previous).catch(console.error);
+      }
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '無法建立新對話'));
+    }
+  };
+
+  const handleUploadSuccess = (file: SessionFile) => {
+    setUploadedFiles((prev) => [...prev, file]);
     setError(null);
   };
 
@@ -41,11 +85,24 @@ function App() {
     setError(errorMsg);
   };
 
-  const handleRemoveFile = (index: number) => {
-    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+  const handleRemoveFile = async (index: number) => {
+    const target = uploadedFiles[index];
+    if (!target || !sessionId) return;
+    setIsDeletingFile(true);
+    setError(null);
+    try {
+      await api.deleteFile(sessionId, {
+        document_name: target.document_name || undefined,
+        store_display_name: target.store_display_name,
+      });
+      setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '刪除檔案失敗'));
+    } finally {
+      setIsDeletingFile(false);
+    }
   };
 
-  // Loading state
   if (!sessionId && !error) {
     return (
       <div className="h-screen flex items-center justify-center bg-[var(--bg-dark)]">
@@ -56,13 +113,12 @@ function App() {
             <div className="absolute inset-3 rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] animate-pulse"></div>
           </div>
           <div className="text-[var(--text-primary)] text-xl font-medium mb-2">初始化中</div>
-          <div className="text-[var(--text-secondary)] text-sm">正在建立安全連線...</div>
+          <div className="text-[var(--text-secondary)] text-sm">正在還原或建立連線...</div>
         </div>
       </div>
     );
   }
 
-  // Error state
   if (error && !sessionId) {
     return (
       <div className="h-screen flex items-center justify-center bg-[var(--bg-dark)] p-4">
@@ -74,19 +130,6 @@ function App() {
           </div>
           <h2 className="text-xl font-semibold text-center text-[var(--text-primary)] mb-2">連線錯誤</h2>
           <p className="text-[var(--text-secondary)] text-center text-sm mb-6">{error}</p>
-          <div className="bg-[var(--bg-dark)] rounded-lg p-4 mb-6">
-            <p className="text-xs text-[var(--text-secondary)] mb-2">請確認：</p>
-            <ul className="text-xs text-[var(--text-secondary)] space-y-1">
-              <li className="flex items-center gap-2">
-                <span className="w-1 h-1 rounded-full bg-[var(--accent)]"></span>
-                後端服務正在運行
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="w-1 h-1 rounded-full bg-[var(--accent)]"></span>
-                已設定 GEMINI_API_KEY
-              </li>
-            </ul>
-          </div>
           <button
             onClick={() => window.location.reload()}
             className="w-full py-3 rounded-xl btn-primary text-white font-medium"
@@ -100,7 +143,6 @@ function App() {
 
   return (
     <div className="h-screen flex flex-col bg-[var(--bg-dark)] overflow-hidden">
-      {/* Header */}
       <header className="glass border-b border-[var(--border)] px-4 py-3 flex items-center justify-between z-10">
         <div className="flex items-center gap-3">
           <button
@@ -121,6 +163,12 @@ function App() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={startNewSession}
+            className="px-3 py-1.5 text-xs rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)] transition-colors"
+          >
+            新對話
+          </button>
           <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20">
             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
             <span className="text-xs text-green-400">已連線</span>
@@ -129,10 +177,8 @@ function App() {
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
         <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:relative z-20 h-[calc(100vh-57px)] w-80 glass border-r border-[var(--border)] transition-transform duration-300 ease-in-out`}>
           <div className="h-full flex flex-col p-4">
-            {/* Upload Section */}
             <div className="mb-6">
               <h2 className="text-sm font-medium text-[var(--text-secondary)] mb-3 flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,14 +193,12 @@ function App() {
               />
             </div>
 
-            {/* Error Message */}
             {error && (
               <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 animate-fade-in">
                 <p className="text-sm text-red-400">{error}</p>
               </div>
             )}
 
-            {/* Uploaded Files */}
             <div className="flex-1 overflow-y-auto">
               <h2 className="text-sm font-medium text-[var(--text-secondary)] mb-3 flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -176,7 +220,7 @@ function App() {
                 <ul className="space-y-2">
                   {uploadedFiles.map((file, idx) => (
                     <li
-                      key={idx}
+                      key={`${file.document_name || file.store_display_name || file.original_name}-${idx}`}
                       className="group flex items-center gap-3 p-3 rounded-lg bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] transition-colors animate-fade-in"
                       style={{ animationDelay: `${idx * 50}ms` }}
                     >
@@ -185,10 +229,14 @@ function App() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                       </div>
-                      <span className="flex-1 text-sm text-[var(--text-primary)] truncate">{file}</span>
+                      <span className="flex-1 text-sm text-[var(--text-primary)] truncate">
+                        {file.original_name}
+                      </span>
                       <button
                         onClick={() => handleRemoveFile(idx)}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 transition-all"
+                        disabled={isDeletingFile}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 transition-all disabled:opacity-40"
+                        title="從知識庫刪除"
                       >
                         <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -200,7 +248,6 @@ function App() {
               )}
             </div>
 
-            {/* Footer */}
             <div className="pt-4 border-t border-[var(--border)]">
               <p className="text-xs text-[var(--text-secondary)] text-center opacity-60">
                 Powered by Google Gemini
@@ -209,7 +256,6 @@ function App() {
           </div>
         </aside>
 
-        {/* Overlay for mobile */}
         {sidebarOpen && (
           <div
             className="fixed inset-0 bg-black/50 z-10 lg:hidden"
@@ -217,7 +263,6 @@ function App() {
           />
         )}
 
-        {/* Main Chat Area */}
         <main className="flex-1 flex flex-col min-w-0">
           <ChatWindow sessionId={sessionId!} hasFiles={uploadedFiles.length > 0} />
         </main>

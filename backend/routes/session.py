@@ -18,6 +18,17 @@ class SessionResponse(BaseModel):
     file_search_store_name: str
 
 
+def _public_files(session: dict) -> list[dict]:
+    return [
+        {
+            "original_name": item.get("original_name"),
+            "store_display_name": item.get("store_display_name"),
+            "document_name": item.get("document_name"),
+        }
+        for item in session.get("files", [])
+    ]
+
+
 @router.post("/create", response_model=SessionResponse)
 async def create_session(data: SessionCreate = SessionCreate()):
     """建立新的對話 session"""
@@ -39,18 +50,17 @@ async def create_session(data: SessionCreate = SessionCreate()):
 
 @router.get("/{session_id}")
 async def get_session(session_id: str):
-    """取得 session 資訊"""
+    """取得 session 資訊（續用時還原對話與檔案）"""
     session = sessions.get(session_id)
     if session is None:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail="Session not found 或已過期")
+    sessions.touch(session_id)
     return {
         "session_id": session["session_id"],
         "file_search_store_name": session["file_search_store_name"],
         "created_at": session["created_at"],
         "last_active_at": session["last_active_at"],
-        "files": [
-            {"original_name": item["original_name"]} for item in session["files"]
-        ],
+        "files": _public_files(session),
         "messages": session["messages"],
         "message_count": len(session["messages"]),
     }
@@ -77,7 +87,6 @@ async def delete_session(session_id: str):
         gemini_service = GeminiService()
         gemini_service.delete_file_search_store(store_name)
     except GeminiServiceError as exc:
-        # Still drop local session so the client can recover
         sessions.delete(session_id)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

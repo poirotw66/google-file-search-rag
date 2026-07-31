@@ -95,11 +95,17 @@ class GeminiService:
         if getattr(operation, "error", None):
             raise GeminiServiceError(f"上傳檔案失敗: {operation.error}")
 
+        document_name = None
+        response_payload = getattr(operation, "response", None)
+        if response_payload is not None:
+            document_name = getattr(response_payload, "document_name", None)
+
         return {
             "status": "completed",
             "operation_name": getattr(operation, "name", None),
             "store_display_name": store_display_name,
             "original_name": display_name,
+            "document_name": document_name,
         }
 
     def generate_content(
@@ -115,15 +121,7 @@ class GeminiService:
             response = self.client.models.generate_content(
                 model=MODEL_NAME,
                 contents=contents,
-                config=types.GenerateContentConfig(
-                    tools=[
-                        types.Tool(
-                            file_search=types.FileSearch(
-                                file_search_store_names=file_search_store_names
-                            )
-                        )
-                    ]
-                ),
+                config=self._file_search_config(file_search_store_names),
             )
         except Exception as exc:  # noqa: BLE001
             raise GeminiServiceError(f"產生回應失敗: {exc}") from exc
@@ -135,6 +133,76 @@ class GeminiService:
         )
         return {"text": text, "grounding_metadata": grounding}
 
+    def generate_content_stream(
+        self,
+        message: str,
+        file_search_store_names: list[str],
+        history: Optional[list[dict[str, str]]] = None,
+        file_name_map: Optional[dict[str, str]] = None,
+    ):
+        """Yield token/done/error events for SSE streaming."""
+        contents = self._build_contents(history or [], message)
+        chunks: list[str] = []
+        last_response: Any = None
+        try:
+            stream = self.client.models.generate_content_stream(
+                model=MODEL_NAME,
+                contents=contents,
+                config=self._file_search_config(file_search_store_names),
+            )
+            for response in stream:
+                last_response = response
+                text = getattr(response, "text", None) or ""
+                if text:
+                    chunks.append(text)
+                    yield {"type": "token", "text": text}
+        except Exception as exc:  # noqa: BLE001
+            yield {"type": "error", "detail": f"產生回應失敗: {exc}"}
+            return
+
+        full_text = "".join(chunks)
+        grounding = extract_grounding_metadata(
+            last_response,
+            file_name_map=file_name_map or {},
+        )
+        yield {
+            "type": "done",
+            "response": full_text,
+            "grounding_metadata": grounding,
+        }
+
+    def list_documents(self, store_name: str) -> list[dict[str, Any]]:
+        try:
+            pager = self.client.file_search_stores.documents.list(parent=store_name)
+        except Exception as exc:  # noqa: BLE001
+            raise GeminiServiceError(f"列出文件失敗: {exc}") from exc
+        documents: list[dict[str, Any]] = []
+        for doc in pager:
+            documents.append(
+                {
+                    "document_name": getattr(doc, "name", None),
+                    "display_name": getattr(doc, "display_name", None),
+                    "mime_type": getattr(doc, "mime_type", None),
+                    "size_bytes": getattr(doc, "size_bytes", None),
+                }
+            )
+        return documents
+
+    def delete_document(self, document_name: str) -> None:
+        try:
+            self.client.file_search_stores.documents.delete(
+                name=document_name,
+                config={"force": True},
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise GeminiServiceError(f"刪除文件失敗: {exc}") from exc
+
+    def download_media(self, media_id: str) -> bytes:
+        try:
+            return self.client.file_search_stores.download_media(media_id=media_id)
+        except Exception as exc:  # noqa: BLE001
+            raise GeminiServiceError(f"下載引用圖片失敗: {exc}") from exc
+
     def delete_file_search_store(self, store_name: str) -> None:
         try:
             self.client.file_search_stores.delete(
@@ -143,6 +211,18 @@ class GeminiService:
             )
         except Exception as exc:  # noqa: BLE001
             raise GeminiServiceError(f"刪除 File Search Store 失敗: {exc}") from exc
+
+    @staticmethod
+    def _file_search_config(file_search_store_names: list[str]) -> types.GenerateContentConfig:
+        return types.GenerateContentConfig(
+            tools=[
+                types.Tool(
+                    file_search=types.FileSearch(
+                        file_search_store_names=file_search_store_names
+                    )
+                )
+            ]
+        )
 
     def _wait_for_operation(self, operation: Any) -> Any:
         deadline = time.time() + UPLOAD_TIMEOUT_SECONDS

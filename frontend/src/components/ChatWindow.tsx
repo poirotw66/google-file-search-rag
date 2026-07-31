@@ -1,7 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import MessageList, { Message } from './MessageList';
 import InputArea from './InputArea';
-import { api, getErrorMessage } from '../api/client';
+import {
+  api,
+  ChatResponse,
+  CitationContext,
+  getErrorMessage,
+} from '../api/client';
 
 interface ChatWindowProps {
   sessionId: string;
@@ -18,9 +23,39 @@ function historyToMessages(
   }));
 }
 
+function dedupeCitations(raw: CitationContext[]): CitationContext[] {
+  const seen = new Set<string>();
+  return raw.filter((ctx) => {
+    const key = [
+      ctx.title || '',
+      ctx.uri || '',
+      ctx.page_number ?? '',
+      ctx.media_id || '',
+    ].join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function citationsFromGrounding(
+  grounding: ChatResponse['grounding_metadata'] | undefined
+): CitationContext[] | undefined {
+  const raw =
+    grounding?.grounding_chunks
+      ?.map((chunk) => chunk.retrieved_context)
+      .filter(
+        (ctx): ctx is CitationContext =>
+          Boolean(ctx?.uri || ctx?.title || ctx?.page_number || ctx?.media_id)
+      ) || [];
+  const unique = dedupeCitations(raw);
+  return unique.length > 0 ? unique : undefined;
+}
+
 export default function ChatWindow({ sessionId, hasFiles = false }: ChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,12 +66,13 @@ export default function ChatWindow({ sessionId, hasFiles = false }: ChatWindowPr
           setMessages(historyToMessages(session.messages));
         }
       } catch {
-        // Fresh session or expired — start empty
+        if (!cancelled) setMessages([]);
       }
     };
     loadHistory();
     return () => {
       cancelled = true;
+      abortRef.current?.abort();
     };
   }, [sessionId]);
 
@@ -46,55 +82,85 @@ export default function ChatWindow({ sessionId, hasFiles = false }: ChatWindowPr
       role: 'user',
       content,
     };
+    const assistantId = `${Date.now() + 1}`;
+    let assistantCreated = false;
     setMessages((prev) => [...prev, userMessage]);
-
     setIsLoading(true);
+
+    const ensureAssistant = () => {
+      if (assistantCreated) return;
+      assistantCreated = true;
+      setMessages((prev) => [
+        ...prev,
+        { id: assistantId, role: 'assistant', content: '' },
+      ]);
+    };
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
-      const response = await api.sendMessage(sessionId, content);
-
-      const rawCitations =
-        response.grounding_metadata?.grounding_chunks
-          ?.map((chunk) => chunk.retrieved_context)
-          .filter(
-            (
-              ctx
-            ): ctx is {
-              uri?: string;
-              title?: string;
-              page_number?: number | null;
-              media_id?: string | null;
-              text?: string | null;
-            } => Boolean(ctx?.uri || ctx?.title || ctx?.page_number || ctx?.media_id)
-          ) || [];
-
-      const seen = new Set<string>();
-      const citations = rawCitations.filter((ctx) => {
-        const key = [
-          ctx.title || '',
-          ctx.uri || '',
-          ctx.page_number ?? '',
-          ctx.media_id || '',
-        ].join('|');
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: response.response,
-        citations: citations.length > 0 ? citations : undefined,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+      await api.streamMessage(
+        sessionId,
+        content,
+        (event) => {
+          if (event.type === 'token') {
+            ensureAssistant();
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantId
+                  ? { ...msg, content: msg.content + event.text }
+                  : msg
+              )
+            );
+          } else if (event.type === 'done') {
+            ensureAssistant();
+            const citations = citationsFromGrounding(event.grounding_metadata);
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantId
+                  ? {
+                      ...msg,
+                      content: event.response || msg.content,
+                      citations,
+                    }
+                  : msg
+              )
+            );
+          } else if (event.type === 'error') {
+            ensureAssistant();
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantId
+                  ? {
+                      ...msg,
+                      content: `抱歉，發生錯誤：${event.detail}`,
+                      isError: true,
+                    }
+                  : msg
+              )
+            );
+          }
+        },
+        controller.signal
+      );
     } catch (error: unknown) {
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `抱歉，發生錯誤：${getErrorMessage(error, '無法取得回應，請稍後再試')}`,
-        isError: true,
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      if ((error as { name?: string })?.name === 'AbortError') {
+        return;
+      }
+      ensureAssistant();
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantId
+            ? {
+                ...msg,
+                content: `抱歉，發生錯誤：${getErrorMessage(error, '無法取得回應，請稍後再試')}`,
+                isError: true,
+              }
+            : msg
+        )
+      );
     } finally {
       setIsLoading(false);
     }
@@ -113,7 +179,7 @@ export default function ChatWindow({ sessionId, hasFiles = false }: ChatWindowPr
           <div>
             <h2 className="text-sm font-medium text-[var(--text-primary)]">智能對話</h2>
             <p className="text-xs text-[var(--text-secondary)]">
-              {hasFiles ? '基於已上傳文件回答（支援多輪對話）' : '上傳文件後開始提問'}
+              {hasFiles ? '基於已上傳文件回答（串流 · 多輪）' : '上傳文件後開始提問'}
             </p>
           </div>
           {messages.length > 0 && (
@@ -147,6 +213,7 @@ export default function ChatWindow({ sessionId, hasFiles = false }: ChatWindowPr
           messages={messages}
           isLoading={isLoading}
           hasFiles={hasFiles}
+          sessionId={sessionId}
           onSuggestionClick={handleSuggestionClick}
         />
       </div>
