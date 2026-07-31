@@ -106,6 +106,17 @@ export function mediaUrl(sessionId: string, mediaId: string): string {
   return `/api/chat/media?${params.toString()}`;
 }
 
+export function isRetryableUploadError(error: unknown): boolean {
+  if (axios.isAxiosError(error)) {
+    if (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK') {
+      return true;
+    }
+    const status = error.response?.status;
+    return status === 408 || status === 429 || (status !== undefined && status >= 500);
+  }
+  return false;
+}
+
 export const api = {
   createSession: async (displayName?: string): Promise<SessionResponse> => {
     const response = await apiClient.post<SessionResponse>('/session/create', {
@@ -132,7 +143,15 @@ export const api = {
   uploadFile: async (
     sessionId: string,
     file: File,
-    displayName?: string
+    displayName?: string,
+    options?: {
+      onUploadProgress?: (progress: {
+        loaded: number;
+        total?: number;
+        percent: number;
+      }) => void;
+      signal?: AbortSignal;
+    }
   ): Promise<UploadResponse> => {
     const formData = new FormData();
     formData.append('session_id', sessionId);
@@ -149,6 +168,15 @@ export const api = {
           'Content-Type': 'multipart/form-data',
         },
         timeout: 180000,
+        signal: options?.signal,
+        onUploadProgress: (event) => {
+          if (!options?.onUploadProgress) return;
+          const total = event.total || file.size || 0;
+          const loaded = event.loaded || 0;
+          const percent =
+            total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+          options.onUploadProgress({ loaded, total: total || undefined, percent });
+        },
       }
     );
     return response.data;

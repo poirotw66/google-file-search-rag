@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-from services.gemini import GeminiService, GeminiServiceError
+from services.gemini import GeminiServiceError, get_gemini_service
 from services.session_store import sessions
 
 load_dotenv()
@@ -18,13 +18,13 @@ async def _cleanup_expired_sessions() -> None:
     expired = sessions.cleanup_expired()
     if not expired:
         return
-    gemini = GeminiService()
+    gemini = get_gemini_service()
     for session in expired:
         store_name = session.get("file_search_store_name")
         if not store_name:
             continue
         try:
-            gemini.delete_file_search_store(store_name)
+            await asyncio.to_thread(gemini.delete_file_search_store, store_name)
             logger.info("Deleted expired store %s", store_name)
         except GeminiServiceError as exc:
             logger.warning("Failed to delete store %s: %s", store_name, exc)

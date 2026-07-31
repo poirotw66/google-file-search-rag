@@ -344,3 +344,16 @@ def _strip_store_suffix(title: Optional[str]) -> Optional[str]:
     ):
         return title[:-9]
     return title
+
+
+_gemini_service: Optional[GeminiService] = None
+_gemini_lock = __import__("threading").Lock()
+
+
+def get_gemini_service() -> GeminiService:
+    """Reuse one Client across requests (avoids reconnecting per call)."""
+    global _gemini_service
+    with _gemini_lock:
+        if _gemini_service is None:
+            _gemini_service = GeminiService()
+        return _gemini_service
