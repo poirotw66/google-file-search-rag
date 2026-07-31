@@ -15,7 +15,12 @@ def test_session_store_persists_history_and_files(tmp_path) -> None:
     store.create("s1", "fileSearchStores/demo")
     store.append_message("s1", "user", "第一題")
     store.append_message("s1", "model", "第一答")
-    store.add_file("s1", "手冊.pdf", "手冊.pdf-abcd1234")
+    store.add_file(
+        "s1",
+        "手冊.pdf",
+        "手冊.pdf-abcd1234",
+        document_name="fileSearchStores/demo/documents/doc1",
+    )
 
     loaded = SessionStore(db_path=str(db_path), ttl_hours=24)
     session = loaded.get("s1")
@@ -26,9 +31,43 @@ def test_session_store_persists_history_and_files(tmp_path) -> None:
         {"role": "model", "content": "第一答"},
     ]
     assert loaded.file_name_map("s1") == {"手冊.pdf-abcd1234": "手冊.pdf"}
+    assert session["files"][0]["document_name"] == "fileSearchStores/demo/documents/doc1"
 
     loaded.clear_messages("s1")
     assert loaded.get("s1")["messages"] == []
+
+
+def test_session_store_remove_file_by_document_name(tmp_path) -> None:
+    store = SessionStore(db_path=str(tmp_path / "sessions.db"), ttl_hours=24)
+    store.create("s1", "fileSearchStores/demo")
+    store.add_file(
+        "s1",
+        "a.pdf",
+        "a.pdf-11111111",
+        document_name="fileSearchStores/demo/documents/a",
+    )
+    store.add_file(
+        "s1",
+        "b.pdf",
+        "b.pdf-22222222",
+        document_name="fileSearchStores/demo/documents/b",
+    )
+    removed = store.remove_file(
+        "s1",
+        document_name="fileSearchStores/demo/documents/a",
+    )
+    assert removed is not None
+    assert removed["original_name"] == "a.pdf"
+    remaining = store.get("s1")["files"]
+    assert len(remaining) == 1
+    assert remaining[0]["original_name"] == "b.pdf"
+
+
+def test_media_id_belongs_to_store() -> None:
+    store = "fileSearchStores/demo"
+    media_id = f"{store}/media/BlobId-1"
+    assert media_id.startswith(f"{store}/media/")
+    assert not "fileSearchStores/other/media/x".startswith(f"{store}/media/")
 
 
 def test_session_store_expires_inactive_sessions(tmp_path) -> None:

@@ -28,9 +28,33 @@ apiClient.interceptors.response.use(
   }
 );
 
+export const SESSION_STORAGE_KEY = 'docuchat_session_id';
+
 export interface SessionResponse {
   session_id: string;
   file_search_store_name: string;
+}
+
+export interface SessionFile {
+  original_name: string;
+  store_display_name?: string;
+  document_name?: string | null;
+}
+
+export interface SessionDetail {
+  session_id: string;
+  file_search_store_name: string;
+  files: SessionFile[];
+  messages: Array<{ role: string; content: string }>;
+  message_count: number;
+}
+
+export interface CitationContext {
+  uri?: string;
+  title?: string;
+  page_number?: number | null;
+  media_id?: string | null;
+  text?: string | null;
 }
 
 export interface ChatResponse {
@@ -38,13 +62,7 @@ export interface ChatResponse {
   grounding_metadata?: {
     web_search_queries?: string[];
     grounding_chunks?: Array<{
-      retrieved_context?: {
-        uri?: string;
-        title?: string;
-        page_number?: number | null;
-        media_id?: string | null;
-        text?: string | null;
-      };
+      retrieved_context?: CitationContext;
       web?: {
         uri?: string;
         title?: string;
@@ -53,10 +71,20 @@ export interface ChatResponse {
   };
 }
 
+export type StreamEvent =
+  | { type: 'token'; text: string }
+  | {
+      type: 'done';
+      response: string;
+      grounding_metadata?: ChatResponse['grounding_metadata'];
+    }
+  | { type: 'error'; detail: string };
+
 export interface UploadResponse {
   status: string;
   file_name: string;
   store_display_name?: string;
+  document_name?: string | null;
   operation_name?: string;
 }
 
@@ -70,6 +98,14 @@ export function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+export function mediaUrl(sessionId: string, mediaId: string): string {
+  const params = new URLSearchParams({
+    session_id: sessionId,
+    media_id: mediaId,
+  });
+  return `/api/chat/media?${params.toString()}`;
+}
+
 export const api = {
   createSession: async (displayName?: string): Promise<SessionResponse> => {
     const response = await apiClient.post<SessionResponse>('/session/create', {
@@ -78,8 +114,8 @@ export const api = {
     return response.data;
   },
 
-  getSession: async (sessionId: string) => {
-    const response = await apiClient.get(`/session/${sessionId}`);
+  getSession: async (sessionId: string): Promise<SessionDetail> => {
+    const response = await apiClient.get<SessionDetail>(`/session/${sessionId}`);
     return response.data;
   },
 
@@ -118,6 +154,20 @@ export const api = {
     return response.data;
   },
 
+  deleteFile: async (
+    sessionId: string,
+    opts: { document_name?: string; store_display_name?: string }
+  ) => {
+    const response = await apiClient.delete('/upload/file', {
+      params: {
+        session_id: sessionId,
+        ...opts,
+      },
+      timeout: 60000,
+    });
+    return response.data;
+  },
+
   sendMessage: async (
     sessionId: string,
     message: string
@@ -133,5 +183,60 @@ export const api = {
       }
     );
     return response.data;
+  },
+
+  streamMessage: async (
+    sessionId: string,
+    message: string,
+    onEvent: (event: StreamEvent) => void,
+    signal?: AbortSignal
+  ): Promise<void> => {
+    const response = await fetch('/api/chat/message/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, message }),
+      signal,
+    });
+
+    if (!response.ok) {
+      let detail = `串流請求失敗 (${response.status})`;
+      try {
+        const payload = await response.json();
+        if (payload?.detail) detail = payload.detail;
+      } catch {
+        // ignore parse errors
+      }
+      throw new Error(detail);
+    }
+
+    if (!response.body) {
+      throw new Error('瀏覽器不支援串流回應');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+      for (const part of parts) {
+        const line = part
+          .split('\n')
+          .map((item) => item.trim())
+          .find((item) => item.startsWith('data:'));
+        if (!line) continue;
+        const raw = line.slice(5).trim();
+        if (!raw) continue;
+        try {
+          onEvent(JSON.parse(raw) as StreamEvent);
+        } catch {
+          // skip malformed chunks
+        }
+      }
+    }
   },
 };

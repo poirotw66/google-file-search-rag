@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react';
-import { api, UploadResponse, getErrorMessage } from '../api/client';
+import { api, UploadResponse, getErrorMessage, SessionFile } from '../api/client';
 
 interface FileUploadProps {
   sessionId: string;
-  onUploadSuccess: (fileName: string) => void;
+  onUploadSuccess: (file: SessionFile) => void;
   onUploadError: (error: string) => void;
 }
 
@@ -23,7 +23,6 @@ export default function FileUpload({
     setIsUploading(true);
     setUploadProgress(0);
 
-    // Simulate progress for better UX
     const progressInterval = setInterval(() => {
       setUploadProgress((prev) => {
         if (prev >= 90) {
@@ -43,7 +42,11 @@ export default function FileUpload({
       clearInterval(progressInterval);
       setUploadProgress(100);
       setTimeout(() => {
-        onUploadSuccess(result.file_name);
+        onUploadSuccess({
+          original_name: result.file_name,
+          store_display_name: result.store_display_name,
+          document_name: result.document_name,
+        });
         setIsUploading(false);
         setUploadProgress(0);
       }, 300);

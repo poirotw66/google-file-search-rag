@@ -123,7 +123,13 @@ class SessionStore:
             raise KeyError(f"Session not found: {session_id}")
         self._write_json(session_id, messages_json="[]")
 
-    def add_file(self, session_id: str, original_name: str, store_display_name: str) -> None:
+    def add_file(
+        self,
+        session_id: str,
+        original_name: str,
+        store_display_name: str,
+        document_name: Optional[str] = None,
+    ) -> None:
         session = self.get(session_id)
         if session is None:
             raise KeyError(f"Session not found: {session_id}")
@@ -132,9 +138,44 @@ class SessionStore:
             {
                 "original_name": original_name,
                 "store_display_name": store_display_name,
+                "document_name": document_name,
             }
         )
         self._write_json(session_id, files_json=json.dumps(files, ensure_ascii=False))
+
+    def remove_file(
+        self,
+        session_id: str,
+        *,
+        document_name: Optional[str] = None,
+        store_display_name: Optional[str] = None,
+    ) -> Optional[dict[str, Any]]:
+        session = self.get(session_id)
+        if session is None:
+            raise KeyError(f"Session not found: {session_id}")
+        removed: Optional[dict[str, Any]] = None
+        remaining: list[dict[str, Any]] = []
+        for item in session["files"]:
+            matched = False
+            if document_name and item.get("document_name") == document_name:
+                matched = True
+            elif (
+                not document_name
+                and store_display_name
+                and item.get("store_display_name") == store_display_name
+            ):
+                matched = True
+            if matched and removed is None:
+                removed = item
+                continue
+            remaining.append(item)
+        if removed is None:
+            return None
+        self._write_json(
+            session_id,
+            files_json=json.dumps(remaining, ensure_ascii=False),
+        )
+        return removed
 
     def file_name_map(self, session_id: str) -> dict[str, str]:
         session = self.get(session_id)
