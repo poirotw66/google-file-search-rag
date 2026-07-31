@@ -21,17 +21,18 @@ class GeminiService:
     
     def create_file_search_store(self, display_name: str) -> str:
         """建立一個新的 File Search Store 並回傳 store name
-        
-        根據官方文件:
-        curl -X POST "https://generativelanguage.googleapis.com/v1beta/fileSearchStores?key=${GEMINI_API_KEY}" \
-            -H "Content-Type: application/json" 
-            -d '{ "displayName": "My Store" }'
+
+        Uses gemini-embedding-2 so text and image uploads are searchable.
         """
         url = f"{self.base_url}/fileSearchStores"
         headers = {"Content-Type": "application/json"}
         params = {"key": self.api_key}
-        data = {"displayName": display_name}
-        
+        # ponytail: multimodal File Search requires embeddingModel at create time
+        data = {
+            "displayName": display_name,
+            "embeddingModel": "models/gemini-embedding-2",
+        }
+
         response = requests.post(url, headers=headers, params=params, json=data)
         response.raise_for_status()
         result = response.json()
@@ -142,7 +143,7 @@ class GeminiService:
         根據官方文件使用 SDK 的 generate_content
         """
         response = self.client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.6-flash",
             contents=contents,
             config=types.GenerateContentConfig(
                 tools=[
