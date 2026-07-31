@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import FileUpload from './components/FileUpload';
 import ChatWindow from './components/ChatWindow';
-import { api } from './api/client';
+import { api, getErrorMessage } from './api/client';
 
 function App() {
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -17,10 +17,9 @@ function App() {
         sessionIdRef.current = session.session_id;
         setSessionId(session.session_id);
         setError(null);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Session creation error:', err);
-        const errorMessage = err.response?.data?.detail || err.message || '無法連接到後端服務';
-        setError('無法建立 session: ' + errorMessage);
+        setError('無法建立 session: ' + getErrorMessage(err, '無法連接到後端服務'));
       }
     };
 
@@ -220,7 +219,7 @@ function App() {
 
         {/* Main Chat Area */}
         <main className="flex-1 flex flex-col min-w-0">
-          <ChatWindow sessionId={sessionId!} hasFiles={uploadedFiles.length > 0} uploadedFileNames={uploadedFiles} />
+          <ChatWindow sessionId={sessionId!} hasFiles={uploadedFiles.length > 0} />
         </main>
       </div>
     </div>

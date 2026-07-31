@@ -1,17 +1,44 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import MessageList, { Message } from './MessageList';
 import InputArea from './InputArea';
-import { api } from '../api/client';
+import { api, getErrorMessage } from '../api/client';
 
 interface ChatWindowProps {
   sessionId: string;
   hasFiles?: boolean;
-  uploadedFileNames?: string[];
 }
 
-export default function ChatWindow({ sessionId, hasFiles = false, uploadedFileNames = [] }: ChatWindowProps) {
+function historyToMessages(
+  history: Array<{ role: string; content: string }>
+): Message[] {
+  return history.map((item, index) => ({
+    id: `history-${index}`,
+    role: item.role === 'model' ? 'assistant' : 'user',
+    content: item.content,
+  }));
+}
+
+export default function ChatWindow({ sessionId, hasFiles = false }: ChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadHistory = async () => {
+      try {
+        const session = await api.getSession(sessionId);
+        if (!cancelled && Array.isArray(session.messages)) {
+          setMessages(historyToMessages(session.messages));
+        }
+      } catch {
+        // Fresh session or expired — start empty
+      }
+    };
+    loadHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
 
   const handleSendMessage = async (content: string) => {
     const userMessage: Message = {
@@ -24,57 +51,47 @@ export default function ChatWindow({ sessionId, hasFiles = false, uploadedFileNa
     setIsLoading(true);
     try {
       const response = await api.sendMessage(sessionId, content);
-      
-      // 處理引用：去重
-      const rawCitations = response.grounding_metadata?.grounding_chunks
-        ?.map((chunk) => chunk.retrieved_context)
-        .filter((ctx) => ctx?.uri || ctx?.title) || [];
-      
-      // 去重（根據 title 或 uri）
-      const seenTitles = new Set<string>();
-      const uniqueCitations = rawCitations.filter((ctx) => {
-        const key = ctx?.title || ctx?.uri || '';
-        if (seenTitles.has(key)) return false;
-        seenTitles.add(key);
+
+      const rawCitations =
+        response.grounding_metadata?.grounding_chunks
+          ?.map((chunk) => chunk.retrieved_context)
+          .filter(
+            (
+              ctx
+            ): ctx is {
+              uri?: string;
+              title?: string;
+              page_number?: number | null;
+              media_id?: string | null;
+              text?: string | null;
+            } => Boolean(ctx?.uri || ctx?.title || ctx?.page_number || ctx?.media_id)
+          ) || [];
+
+      const seen = new Set<string>();
+      const citations = rawCitations.filter((ctx) => {
+        const key = [
+          ctx.title || '',
+          ctx.uri || '',
+          ctx.page_number ?? '',
+          ctx.media_id || '',
+        ].join('|');
+        if (seen.has(key)) return false;
+        seen.add(key);
         return true;
-      });
-      
-      // 將內部檔名映射到用戶上傳的檔名
-      const cleanedCitations = uniqueCitations.map((ctx, index) => {
-        const rawTitle = ctx?.title || ctx?.uri || '';
-        let title = '文件引用';
-        
-        // 判斷是否為內部生成的檔名格式 (file + hex 或 純 hex)
-        const isInternalName = /^file[a-f0-9]+$/i.test(rawTitle) || /^[a-f0-9]{12,}$/i.test(rawTitle);
-        
-        if (isInternalName && uploadedFileNames.length > 0) {
-          // 使用上傳的檔案名稱（根據索引或使用第一個）
-          title = uploadedFileNames[Math.min(index, uploadedFileNames.length - 1)];
-        } else if (rawTitle) {
-          title = rawTitle;
-          // 移除 -xxxxxxxx 格式的 UUID 後綴
-          title = title.replace(/-[a-f0-9]{8}$/i, '');
-          // 如果是 files/xxx 格式，只取檔名部分
-          if (title.startsWith('files/')) {
-            title = title.replace('files/', '');
-          }
-        }
-        
-        return { ...ctx, title };
       });
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: response.response,
-        citations: cleanedCitations.length > 0 ? cleanedCitations : undefined,
+        citations: citations.length > 0 ? citations : undefined,
       };
       setMessages((prev) => [...prev, assistantMessage]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `抱歉，發生錯誤：${error.response?.data?.detail || '無法取得回應，請稍後再試'}`,
+        content: `抱歉，發生錯誤：${getErrorMessage(error, '無法取得回應，請稍後再試')}`,
         isError: true,
       };
       setMessages((prev) => [...prev, errorMessage]);
@@ -83,7 +100,6 @@ export default function ChatWindow({ sessionId, hasFiles = false, uploadedFileNa
     }
   };
 
-  // 點擊推薦問題時直接發送
   const handleSuggestionClick = (text: string) => {
     if (!isLoading) {
       handleSendMessage(text);
@@ -92,19 +108,33 @@ export default function ChatWindow({ sessionId, hasFiles = false, uploadedFileNa
 
   return (
     <div className="flex flex-col h-full">
-      {/* Chat Header */}
       <div className="px-4 py-3 border-b border-[var(--border)] glass">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-medium text-[var(--text-primary)]">智能對話</h2>
             <p className="text-xs text-[var(--text-secondary)]">
-              {hasFiles ? '已準備就緒，可以開始提問' : '請先上傳文件'}
+              {hasFiles ? '基於已上傳文件回答（支援多輪對話）' : '上傳文件後開始提問'}
             </p>
           </div>
           {messages.length > 0 && (
             <button
-              onClick={() => setMessages([])}
-              className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors px-2 py-1 rounded hover:bg-[var(--bg-card)]"
+              onClick={async () => {
+                try {
+                  await api.clearMessages(sessionId);
+                  setMessages([]);
+                } catch (error: unknown) {
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: Date.now().toString(),
+                      role: 'assistant',
+                      content: `清除對話失敗：${getErrorMessage(error, '請稍後再試')}`,
+                      isError: true,
+                    },
+                  ]);
+                }
+              }}
+              className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             >
               清除對話
             </button>
@@ -112,17 +142,15 @@ export default function ChatWindow({ sessionId, hasFiles = false, uploadedFileNa
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-hidden">
-        <MessageList 
-          messages={messages} 
-          isLoading={isLoading} 
+        <MessageList
+          messages={messages}
+          isLoading={isLoading}
           hasFiles={hasFiles}
           onSuggestionClick={handleSuggestionClick}
         />
       </div>
 
-      {/* Input */}
       <InputArea onSendMessage={handleSendMessage} disabled={isLoading} />
     </div>
   );

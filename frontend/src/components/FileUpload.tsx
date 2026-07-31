@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { api, UploadResponse } from '../api/client';
+import { api, UploadResponse, getErrorMessage } from '../api/client';
 
 interface FileUploadProps {
   sessionId: string;
@@ -47,9 +47,9 @@ export default function FileUpload({
         setIsUploading(false);
         setUploadProgress(0);
       }, 300);
-    } catch (error: any) {
+    } catch (error: unknown) {
       clearInterval(progressInterval);
-      onUploadError(error.response?.data?.detail || '上傳失敗，請重試');
+      onUploadError(getErrorMessage(error, '上傳失敗，請重試'));
       setIsUploading(false);
       setUploadProgress(0);
     }

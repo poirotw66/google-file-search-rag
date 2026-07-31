@@ -107,20 +107,22 @@ google-file-search-rag/
 
 ### Session 管理
 - `POST /api/session/create` - 建立新 session
-- `GET /api/session/{session_id}` - 取得 session 資訊
+- `GET /api/session/{session_id}` - 取得 session 資訊（含對話歷史）
+- `POST /api/session/{session_id}/clear-messages` - 清除對話歷史
 - `DELETE /api/session/{session_id}` - 刪除 session
 
 ### 檔案上傳
 - `POST /api/upload/file` - 上傳檔案到指定 session
 
 ### 對話
-- `POST /api/chat/message` - 發送訊息並取得 AI 回應
+- `POST /api/chat/message` - 發送訊息並取得 AI 回應（多輪，含引用頁碼）
 
 ## 注意事項
 
 - 每個 session 會建立一個獨立的 File Search Store
-- Session 結束時會自動清理對應的 Store
-- 目前使用記憶體儲存 session 資訊，生產環境建議使用資料庫
+- Session 與對話歷史會寫入本機 SQLite（預設 `data/sessions.db`）
+- 閒置超過 `SESSION_TTL_HOURS`（預設 24）會自動清理 session 與遠端 Store
+- 查詢模型預設 `gemini-3.6-flash`，Store embedding 使用 `gemini-embedding-2`
 - 檔案上傳會等待 Google API 處理完成後才回傳成功
 
 ## 支援的檔案格式
