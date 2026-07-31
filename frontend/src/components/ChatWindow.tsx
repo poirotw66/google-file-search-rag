@@ -173,13 +173,14 @@ export default function ChatWindow({ sessionId, hasFiles = false }: ChatWindowPr
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-4 py-3 border-b border-[var(--border)] glass">
-        <div className="flex items-center justify-between">
+    <div className="flex flex-col h-full bg-[rgba(255,255,255,0.35)]">
+      <div className="px-5 sm:px-7 py-4 border-b border-[var(--line)]">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-medium text-[var(--text-primary)]">智能對話</h2>
-            <p className="text-xs text-[var(--text-secondary)]">
-              {hasFiles ? '基於已上傳文件回答（串流 · 多輪）' : '上傳文件後開始提問'}
+            <p className="text-[11px] tracking-[0.16em] uppercase text-[var(--muted)]">Conversation</p>
+            <h2 className="font-display text-xl text-[var(--ink)] mt-0.5">智能對話</h2>
+            <p className="text-xs text-[var(--muted)] mt-1">
+              {hasFiles ? '依典藏文件作答 · 串流 · 多輪上下文' : '上傳文件後即可開始精準提問'}
             </p>
           </div>
           {messages.length > 0 && (
@@ -200,7 +201,7 @@ export default function ChatWindow({ sessionId, hasFiles = false }: ChatWindowPr
                   ]);
                 }
               }}
-              className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              className="text-xs px-3 py-1.5 rounded-lg btn-ghost"
             >
               清除對話
             </button>

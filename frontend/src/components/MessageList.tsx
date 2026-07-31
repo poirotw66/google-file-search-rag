@@ -40,21 +40,18 @@ export default function MessageList({
   const showTyping = isLoading && last?.role !== 'assistant';
 
   return (
-    <div className="h-full overflow-y-auto p-4 space-y-4">
+    <div className="h-full overflow-y-auto px-5 sm:px-7 py-6 space-y-5">
       {messages.length === 0 ? (
-        <div className="h-full flex flex-col items-center justify-center text-center px-4">
-          <div className="w-20 h-20 mb-6 rounded-2xl bg-gradient-to-br from-[var(--primary)]/10 to-[var(--secondary)]/10 flex items-center justify-center">
-            <svg className="w-10 h-10 text-[var(--primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">開始對話</h3>
-          <p className="text-sm text-[var(--text-secondary)] max-w-sm">
-            {hasFiles
-              ? '文件已就緒！試著詢問關於文件內容的問題，AI 會幫你找到答案。'
-              : '上傳文件後，你可以詢問任何關於文件內容的問題。'}
+        <div className="h-full flex flex-col items-center justify-center text-center px-2 animate-rise">
+          <p className="font-display text-4xl sm:text-5xl text-[var(--ink)] brand-mark leading-none mb-4">
+            開始對話
           </p>
-          <div className="mt-6 flex flex-wrap gap-2 justify-center">
+          <p className="text-sm text-[var(--muted)] max-w-md leading-relaxed">
+            {hasFiles
+              ? '文件已就緒。提出一個具體問題，我們會從典藏內容中找出可核對的依據。'
+              : '先從左側上傳文件，再回到這裡提問。答案會附上引用來源。'}
+          </p>
+          <div className="mt-8 flex flex-wrap gap-2 justify-center">
             {hasFiles ? (
               <>
                 <SuggestionChip text="這份文件的主要內容是什麼？" onClick={onSuggestionClick} />
@@ -62,9 +59,7 @@ export default function MessageList({
                 <SuggestionChip text="有哪些注意事項？" onClick={onSuggestionClick} />
               </>
             ) : (
-              <p className="text-xs text-[var(--text-secondary)] opacity-60">
-                ← 請先在左側上傳文件
-              </p>
+              <p className="text-xs tracking-wide text-[var(--muted)]">← 請先上傳文件</p>
             )}
           </div>
         </div>
@@ -74,46 +69,38 @@ export default function MessageList({
             <div
               key={message.id}
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
-              style={{ animationDelay: `${index * 30}ms` }}
+              style={{ animationDelay: `${Math.min(index, 8) * 28}ms` }}
             >
-              <div className={`flex gap-3 max-w-[85%] ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                <div
-                  className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center ${
-                    message.role === 'user'
-                      ? 'bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)]'
-                      : 'bg-[var(--bg-card)] border border-[var(--border)]'
-                  }`}
-                >
-                  {message.role === 'user' ? (
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4 text-[var(--accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
-                  )}
+              <div className={`max-w-[min(100%,42rem)] ${message.role === 'user' ? 'items-end' : 'items-start'}`}>
+                <div className="mb-1.5 px-1 text-[10px] tracking-[0.14em] uppercase text-[var(--muted)]">
+                  {message.role === 'user' ? 'You' : 'DocuChat'}
                 </div>
-
                 <div
-                  className={`rounded-2xl px-4 py-3 ${
+                  className={`rounded-[20px] px-4 py-3.5 ${
                     message.role === 'user'
-                      ? 'message-user text-white'
+                      ? 'message-user'
                       : message.isError
-                      ? 'bg-red-500/10 border border-red-500/20 text-red-400'
-                      : 'message-assistant text-[var(--text-primary)]'
+                      ? 'bg-[var(--danger-mist)] border border-[rgba(180,35,24,0.16)] text-[var(--danger)]'
+                      : 'message-assistant text-[var(--ink)]'
                   }`}
                 >
-                  <div className="text-sm whitespace-pre-wrap leading-relaxed">
+                  <div className="text-[14px] sm:text-[15px] whitespace-pre-wrap leading-[1.7]">
                     {message.content}
                   </div>
 
                   {message.citations && message.citations.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
-                      <div className="flex items-center gap-1 text-xs opacity-70">
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                        </svg>
+                    <div
+                      className={`mt-3.5 pt-3 space-y-2 ${
+                        message.role === 'user'
+                          ? 'border-t border-white/15'
+                          : 'border-t border-[var(--line)]'
+                      }`}
+                    >
+                      <div
+                        className={`text-[11px] tracking-wide ${
+                          message.role === 'user' ? 'text-white/70' : 'text-[var(--muted)]'
+                        }`}
+                      >
                         引用來源
                       </div>
                       {message.citations.map((citation, idx) => (
@@ -121,6 +108,7 @@ export default function MessageList({
                           key={idx}
                           citation={citation}
                           sessionId={sessionId}
+                          onDark={message.role === 'user'}
                         />
                       ))}
                     </div>
@@ -132,21 +120,10 @@ export default function MessageList({
 
           {showTyping && (
             <div className="flex justify-start animate-fade-in">
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] flex items-center justify-center">
-                  <svg className="w-4 h-4 text-[var(--accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
-                </div>
-                <div className="message-assistant rounded-2xl px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1">
-                      <span className="w-2 h-2 rounded-full bg-[var(--primary)] animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                      <span className="w-2 h-2 rounded-full bg-[var(--primary)] animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                      <span className="w-2 h-2 rounded-full bg-[var(--primary)] animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                    </div>
-                    <span className="text-xs text-[var(--text-secondary)]">正在思考...</span>
-                  </div>
+              <div className="message-assistant rounded-[20px] px-4 py-3.5">
+                <div className="flex items-center gap-2">
+                  <span className="status-dot" />
+                  <span className="text-xs text-[var(--muted)] tracking-wide">正在整理回答</span>
                 </div>
               </div>
             </div>
@@ -161,9 +138,11 @@ export default function MessageList({
 function CitationCard({
   citation,
   sessionId,
+  onDark = false,
 }: {
   citation: NonNullable<Message['citations']>[number];
   sessionId?: string;
+  onDark?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const label = citation.title || citation.uri || '文件引用';
@@ -171,18 +150,36 @@ function CitationCard({
   const hasSnippet = Boolean(citation.text);
 
   return (
-    <div className="rounded-lg bg-black/10 border border-white/5 p-2">
+    <div
+      className={`rounded-xl p-2.5 ${
+        onDark
+          ? 'bg-white/10 border border-white/10'
+          : 'bg-[rgba(24,32,43,0.03)] border border-[var(--line)]'
+      }`}
+    >
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-medium truncate">{label}</div>
-          <div className="mt-1 flex flex-wrap gap-1">
+          <div className={`text-xs font-medium truncate ${onDark ? 'text-white' : 'text-[var(--ink)]'}`}>
+            {label}
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
             {citation.page_number != null && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-[var(--primary)]/20 text-[10px] text-[var(--primary)]">
+              <span
+                className={`inline-flex items-center px-1.5 py-0.5 text-[10px] tracking-wide ${
+                  onDark
+                    ? 'bg-white/15 text-white/90'
+                    : 'bg-[var(--accent-mist)] text-[var(--accent)]'
+                }`}
+              >
                 第 {citation.page_number} 頁
               </span>
             )}
             {citation.media_id && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-[var(--accent)]/20 text-[10px] text-[var(--accent)]">
+              <span
+                className={`inline-flex items-center px-1.5 py-0.5 text-[10px] tracking-wide ${
+                  onDark ? 'bg-white/15 text-white/90' : 'bg-[rgba(184,137,74,0.12)] text-[var(--warm)]'
+                }`}
+              >
                 圖片片段
               </span>
             )}
@@ -191,7 +188,7 @@ function CitationCard({
         {(hasPreview || hasSnippet) && (
           <button
             onClick={() => setExpanded((value) => !value)}
-            className="text-[10px] opacity-70 hover:opacity-100 shrink-0"
+            className={`text-[10px] shrink-0 ${onDark ? 'text-white/70 hover:text-white' : 'text-[var(--muted)] hover:text-[var(--accent)]'}`}
           >
             {expanded ? '收合' : '詳情'}
           </button>
@@ -201,7 +198,11 @@ function CitationCard({
       {expanded && (
         <div className="mt-2 space-y-2">
           {hasSnippet && (
-            <p className="text-[11px] opacity-80 leading-relaxed whitespace-pre-wrap">
+            <p
+              className={`text-[11px] leading-relaxed whitespace-pre-wrap ${
+                onDark ? 'text-white/80' : 'text-[var(--ink-soft)]'
+              }`}
+            >
               {citation.text}
             </p>
           )}
@@ -209,7 +210,7 @@ function CitationCard({
             <img
               src={mediaUrl(sessionId, citation.media_id)}
               alt={label}
-              className="max-h-40 rounded-md border border-white/10 object-contain bg-black/20"
+              className="max-h-40 rounded-lg border border-[var(--line)] object-contain bg-white"
               loading="lazy"
             />
           )}
@@ -226,10 +227,7 @@ interface SuggestionChipProps {
 
 function SuggestionChip({ text, onClick }: SuggestionChipProps) {
   return (
-    <button
-      onClick={() => onClick?.(text)}
-      className="px-3 py-1.5 text-xs text-[var(--text-secondary)] bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-primary)] border border-[var(--border)] hover:border-[var(--primary)]/50 rounded-full transition-all duration-200 hover:scale-105"
-    >
+    <button onClick={() => onClick?.(text)} className="suggestion-chip px-3.5 py-2 text-xs rounded-xl">
       {text}
     </button>
   );

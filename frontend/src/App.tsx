@@ -53,7 +53,6 @@ function App() {
     };
 
     initializeSession();
-    // ponytail: do not delete session on unmount — refresh must resume via localStorage
     return () => {
       cancelled = true;
     };
@@ -105,15 +104,15 @@ function App() {
 
   if (!sessionId && !error) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[var(--bg-dark)]">
-        <div className="text-center animate-fade-in">
-          <div className="w-16 h-16 mx-auto mb-6 relative">
-            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] animate-spin" style={{ animationDuration: '2s' }}></div>
-            <div className="absolute inset-1 rounded-full bg-[var(--bg-dark)]"></div>
-            <div className="absolute inset-3 rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] animate-pulse"></div>
+      <div className="h-screen flex items-center justify-center relative overflow-hidden">
+        <div className="app-ambience app-ambience-a" />
+        <div className="app-ambience app-ambience-b" />
+        <div className="text-center animate-rise relative z-10 px-6">
+          <p className="font-display text-4xl brand-mark text-[var(--ink)] mb-3">DocuChat</p>
+          <p className="text-sm text-[var(--muted)] tracking-wide">正在準備你的文件工作台</p>
+          <div className="mt-8 mx-auto h-[2px] w-24 overflow-hidden rounded-full bg-[var(--line)]">
+            <div className="h-full w-1/2 bg-[var(--accent)] animate-pulse" />
           </div>
-          <div className="text-[var(--text-primary)] text-xl font-medium mb-2">初始化中</div>
-          <div className="text-[var(--text-secondary)] text-sm">正在還原或建立連線...</div>
         </div>
       </div>
     );
@@ -121,18 +120,19 @@ function App() {
 
   if (error && !sessionId) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[var(--bg-dark)] p-4">
-        <div className="glass rounded-2xl p-8 max-w-md w-full animate-fade-in">
-          <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-red-500/20 flex items-center justify-center">
-            <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-semibold text-center text-[var(--text-primary)] mb-2">連線錯誤</h2>
-          <p className="text-[var(--text-secondary)] text-center text-sm mb-6">{error}</p>
+      <div className="h-screen flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="app-ambience app-ambience-a" />
+        <div className="shell-panel rounded-[24px] p-8 max-w-md w-full animate-rise relative z-10">
+          <p className="font-display text-3xl brand-mark mb-2">DocuChat</p>
+          <h2 className="text-lg font-medium text-[var(--ink)] mb-2">無法連線</h2>
+          <p className="text-sm text-[var(--muted)] leading-relaxed mb-6">{error}</p>
+          <ul className="text-xs text-[var(--ink-soft)] space-y-2 mb-6">
+            <li className="flex gap-2"><span className="text-[var(--accent)]">—</span>後端服務是否已啟動</li>
+            <li className="flex gap-2"><span className="text-[var(--accent)]">—</span>是否已設定 GEMINI_API_KEY</li>
+          </ul>
           <button
             onClick={() => window.location.reload()}
-            className="w-full py-3 rounded-xl btn-primary text-white font-medium"
+            className="w-full py-3 rounded-xl btn-primary font-medium"
           >
             重新連線
           </button>
@@ -142,50 +142,53 @@ function App() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-[var(--bg-dark)] overflow-hidden">
-      <header className="glass border-b border-[var(--border)] px-4 py-3 flex items-center justify-between z-10">
+    <div className="h-screen flex flex-col overflow-hidden relative">
+      <div className="app-ambience app-ambience-a" />
+      <div className="app-ambience app-ambience-b" />
+
+      <header className="relative z-20 px-4 sm:px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-lg hover:bg-[var(--bg-card)] transition-colors lg:hidden"
+            className="p-2 rounded-xl btn-ghost lg:hidden"
+            aria-label="切換側欄"
           >
-            <svg className="w-5 h-5 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 7h16M4 12h16M4 17h10" />
             </svg>
           </button>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--secondary)] flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <h1 className="text-lg font-semibold gradient-text hidden sm:block">DocuChat AI</h1>
+          <div>
+            <h1 className="font-display text-2xl sm:text-3xl brand-mark leading-none">DocuChat</h1>
+            <p className="hidden sm:block text-[11px] tracking-[0.18em] uppercase text-[var(--muted)] mt-1">
+              Document intelligence
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={startNewSession}
-            className="px-3 py-1.5 text-xs rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)] transition-colors"
-          >
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button onClick={startNewSession} className="px-3.5 py-2 text-xs rounded-xl btn-ghost font-medium">
             新對話
           </button>
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20">
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-            <span className="text-xs text-green-400">已連線</span>
+          <div className="hidden sm:flex items-center gap-2 px-3 py-2 text-xs text-[var(--ink-soft)]">
+            <span className="status-dot" />
+            連線就緒
           </div>
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
-        <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:relative z-20 h-[calc(100vh-57px)] w-80 glass border-r border-[var(--border)] transition-transform duration-300 ease-in-out`}>
-          <div className="h-full flex flex-col p-4">
+      <div className="relative z-10 flex-1 flex overflow-hidden px-3 sm:px-5 pb-3 sm:pb-5 gap-0 lg:gap-4">
+        <aside
+          className={`${
+            sidebarOpen ? 'translate-x-0' : '-translate-x-[110%]'
+          } lg:translate-x-0 fixed lg:relative z-30 h-[calc(100%-0.25rem)] lg:h-full w-[min(100vw-1.5rem,20rem)] lg:w-80 shell-panel rounded-[24px] transition-transform duration-300 ease-out`}
+        >
+          <div className="h-full flex flex-col p-5">
             <div className="mb-6">
-              <h2 className="text-sm font-medium text-[var(--text-secondary)] mb-3 flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                上傳文件
-              </h2>
+              <div className="flex items-end justify-between mb-3">
+                <div>
+                  <p className="text-[11px] tracking-[0.16em] uppercase text-[var(--muted)]">Knowledge</p>
+                  <h2 className="font-display text-xl text-[var(--ink)] mt-1">上傳文件</h2>
+                </div>
+              </div>
               <FileUpload
                 sessionId={sessionId!}
                 onUploadSuccess={handleUploadSuccess}
@@ -194,52 +197,46 @@ function App() {
             </div>
 
             {error && (
-              <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 animate-fade-in">
-                <p className="text-sm text-red-400">{error}</p>
+              <div className="mb-4 px-3 py-2.5 rounded-xl bg-[var(--danger-mist)] border border-[rgba(180,35,24,0.15)] animate-fade-in">
+                <p className="text-sm text-[var(--danger)] leading-relaxed">{error}</p>
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto">
-              <h2 className="text-sm font-medium text-[var(--text-secondary)] mb-3 flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
-                </svg>
-                已上傳檔案 ({uploadedFiles.length})
-              </h2>
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <div className="flex items-baseline justify-between mb-2">
+                <h2 className="font-display text-lg text-[var(--ink)]">典藏庫</h2>
+                <span className="text-[11px] text-[var(--muted)] tabular-nums">{uploadedFiles.length} 份</span>
+              </div>
+
               {uploadedFiles.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[var(--bg-card)] flex items-center justify-center">
-                    <svg className="w-6 h-6 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-[var(--text-secondary)]">尚無上傳檔案</p>
-                  <p className="text-xs text-[var(--text-secondary)] opacity-60 mt-1">上傳文件後可進行問答</p>
+                <div className="py-10">
+                  <p className="text-sm text-[var(--ink-soft)]">尚無文件</p>
+                  <p className="text-xs text-[var(--muted)] mt-1 leading-relaxed">
+                    上傳 PDF、Markdown 或圖片後即可開始提問。
+                  </p>
                 </div>
               ) : (
-                <ul className="space-y-2">
+                <ul>
                   {uploadedFiles.map((file, idx) => (
                     <li
                       key={`${file.document_name || file.store_display_name || file.original_name}-${idx}`}
-                      className="group flex items-center gap-3 p-3 rounded-lg bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] transition-colors animate-fade-in"
-                      style={{ animationDelay: `${idx * 50}ms` }}
+                      className="file-row group flex items-center gap-3 py-3 animate-fade-in"
+                      style={{ animationDelay: `${idx * 40}ms` }}
                     >
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--primary)]/20 to-[var(--accent)]/20 flex items-center justify-center flex-shrink-0">
-                        <svg className="w-4 h-4 text-[var(--primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      </div>
-                      <span className="flex-1 text-sm text-[var(--text-primary)] truncate">
+                      <span className="w-7 text-[11px] tabular-nums text-[var(--muted)]">
+                        {String(idx + 1).padStart(2, '0')}
+                      </span>
+                      <span className="flex-1 text-sm text-[var(--ink)] truncate">
                         {file.original_name}
                       </span>
                       <button
                         onClick={() => handleRemoveFile(idx)}
                         disabled={isDeletingFile}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 transition-all disabled:opacity-40"
+                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-mist)] transition-all disabled:opacity-40"
                         title="從知識庫刪除"
                       >
-                        <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                       </button>
                     </li>
@@ -248,9 +245,9 @@ function App() {
               )}
             </div>
 
-            <div className="pt-4 border-t border-[var(--border)]">
-              <p className="text-xs text-[var(--text-secondary)] text-center opacity-60">
-                Powered by Google Gemini
+            <div className="pt-4 mt-2 border-t border-[var(--line)]">
+              <p className="text-[11px] text-[var(--muted)] text-center tracking-wide">
+                Powered by Gemini File Search
               </p>
             </div>
           </div>
@@ -258,12 +255,12 @@ function App() {
 
         {sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black/50 z-10 lg:hidden"
+            className="fixed inset-0 bg-[rgba(24,32,43,0.28)] backdrop-blur-[2px] z-20 lg:hidden"
             onClick={() => setSidebarOpen(false)}
           />
         )}
 
-        <main className="flex-1 flex flex-col min-w-0">
+        <main className="flex-1 flex flex-col min-w-0 shell-panel rounded-[24px] overflow-hidden animate-rise">
           <ChatWindow sessionId={sessionId!} hasFiles={uploadedFiles.length > 0} />
         </main>
       </div>
