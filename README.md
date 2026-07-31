@@ -129,7 +129,9 @@ google-file-search-rag/
 - PDF (application/pdf)
 - Word 文件 (.doc, .docx)
 - Markdown (.md)
-- 圖片 (jpg, jpeg, png)
+- 圖片（多模態檢索建議 PNG / JPEG；Store 使用 `gemini-embedding-2`）
 - 文字檔案 (.txt)
 - 以及其他多種格式（詳見 api_doc.md）
+
+查詢模型預設為 `gemini-3.6-flash`。
 

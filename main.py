@@ -10,7 +10,12 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # File name will be visible in citations
-file_search_store = client.file_search_stores.create(config={'display_name': 'your-fileSearchStore-name'})
+file_search_store = client.file_search_stores.create(
+    config={
+        'display_name': 'your-fileSearchStore-name',
+        'embedding_model': 'models/gemini-embedding-2',
+    }
+)
 
 operation = client.file_search_stores.upload_to_file_search_store(
   file='./data/UHD.md',
@@ -25,7 +30,7 @@ while not operation.done:
     operation = client.operations.get(operation)
 
 response = client.models.generate_content(
-    model="gemini-2.5-flash",
+    model="gemini-3.6-flash",
     contents="""Can you tell me about [ 印表機沒有紙了，怎麼辦？]""",
     config=types.GenerateContentConfig(
         tools=[
