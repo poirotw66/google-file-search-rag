@@ -210,7 +210,7 @@ export default function FileUpload({
   return (
     <div className="space-y-3">
       <div
-        className={`upload-zone rounded-xl p-6 text-center cursor-pointer relative overflow-hidden ${
+        className={`upload-zone rounded-[18px] p-5 text-center cursor-pointer relative overflow-hidden ${
           isDragging ? 'dragging' : ''
         }`}
         onDrop={(e) => {
@@ -240,37 +240,14 @@ export default function FileUpload({
           accept=".pdf,.doc,.docx,.txt,.md,.jpg,.jpeg,.png,.json,.csv,.html,.xml"
         />
 
-        <div
-          className={`w-12 h-12 mx-auto mb-3 rounded-xl flex items-center justify-center transition-all ${
-            isDragging
-              ? 'bg-[var(--accent)]/20 scale-110'
-              : 'bg-gradient-to-br from-[var(--primary)]/10 to-[var(--secondary)]/10'
-          }`}
-        >
-          <svg
-            className={`w-6 h-6 transition-colors ${
-              isDragging ? 'text-[var(--accent)]' : 'text-[var(--primary)]'
-            }`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-            />
-          </svg>
-        </div>
-        <p className="text-sm text-[var(--text-primary)] font-medium mb-1">
-          {isDragging ? '放開以上傳' : '拖放或點擊上傳'}
+        <p className="font-display text-2xl text-[var(--ink)] mb-1">
+          {isDragging ? '放開即可' : '放入文件'}
         </p>
-        <p className="text-xs text-[var(--text-secondary)]">
-          多檔並行（最多 {UPLOAD_CONCURRENCY}）· 真實傳輸進度 · 失敗可重試
+        <p className="text-xs text-[var(--muted)] leading-relaxed">
+          拖放或點擊 · 最多同時 {UPLOAD_CONCURRENCY} 檔 · 失敗可重試
         </p>
         {busy && (
-          <p className="text-xs text-[var(--accent)] mt-2">上傳進行中...</p>
+          <p className="text-xs text-[var(--accent)] mt-3 tracking-wide">上傳進行中</p>
         )}
       </div>
 
@@ -279,28 +256,28 @@ export default function FileUpload({
           {items.map((item) => (
             <li
               key={item.id}
-              className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-3"
+              className="rounded-xl border border-[var(--line)] bg-[rgba(255,255,255,0.65)] px-3 py-2.5"
             >
               <div className="flex items-start gap-2">
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-[var(--text-primary)] truncate">
+                  <div className="text-sm text-[var(--ink)] truncate">
                     {item.file.name}
                   </div>
-                  <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+                  <div className="text-[11px] text-[var(--muted)] mt-0.5">
                     {formatBytes(item.file.size)} · {phaseLabel(item)}
                   </div>
                 </div>
                 {item.phase === 'error' ? (
                   <button
                     onClick={() => retryItem(item.id)}
-                    className="text-[11px] text-[var(--primary)] hover:underline shrink-0"
+                    className="text-[11px] text-[var(--accent)] hover:underline shrink-0"
                   >
                     重試
                   </button>
                 ) : item.phase !== 'done' ? (
                   <button
                     onClick={() => cancelItem(item.id)}
-                    className="text-[11px] text-[var(--text-secondary)] hover:text-red-400 shrink-0"
+                    className="text-[11px] text-[var(--muted)] hover:text-[var(--danger)] shrink-0"
                   >
                     取消
                   </button>
@@ -308,9 +285,9 @@ export default function FileUpload({
               </div>
 
               {(item.phase === 'uploading' || item.phase === 'indexing') && (
-                <div className="mt-2 h-1.5 rounded-full bg-[var(--bg-dark)] overflow-hidden">
+                <div className="mt-2 h-1 rounded-full bg-[rgba(24,32,43,0.08)] overflow-hidden">
                   <div
-                    className={`h-full bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] transition-all duration-200 ${
+                    className={`h-full bg-[var(--accent)] transition-all duration-200 ${
                       item.phase === 'indexing' ? 'animate-pulse w-full' : ''
                     }`}
                     style={
@@ -323,7 +300,7 @@ export default function FileUpload({
               )}
 
               {item.error && item.phase === 'error' && (
-                <p className="mt-2 text-[11px] text-red-400 break-words">{item.error}</p>
+                <p className="mt-2 text-[11px] text-[var(--danger)] break-words">{item.error}</p>
               )}
             </li>
           ))}

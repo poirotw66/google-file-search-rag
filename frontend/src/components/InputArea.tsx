@@ -12,11 +12,11 @@ export default function InputArea({
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 150) + 'px';
+      textareaRef.current.style.height =
+        Math.min(textareaRef.current.scrollHeight, 150) + 'px';
     }
   }, [message]);
 
@@ -35,42 +35,45 @@ export default function InputArea({
   };
 
   return (
-    <div className="p-4 glass border-t border-[var(--border)]">
-      <div className="flex gap-3 items-end">
+    <div className="p-4 sm:p-5 border-t border-[var(--line)] bg-[rgba(255,255,255,0.45)]">
+      <div className="composer-shell rounded-[22px] p-2.5 sm:p-3 flex gap-2.5 items-end">
         <div className="flex-1 relative">
           <textarea
             ref={textareaRef}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="輸入問題，按 Enter 發送..."
-            className="w-full bg-[var(--bg-card)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] border border-[var(--border)] rounded-xl px-4 py-3 pr-12 resize-none input-focus text-sm leading-relaxed"
+            placeholder="提出問題，Enter 發送"
+            className="w-full bg-transparent text-[var(--ink)] placeholder-[var(--muted)] border-0 rounded-xl px-3 py-2.5 resize-none input-focus text-sm leading-relaxed"
             rows={1}
             disabled={disabled}
-            style={{ minHeight: '48px', maxHeight: '150px' }}
+            style={{ minHeight: '44px', maxHeight: '150px', boxShadow: 'none' }}
           />
-          <div className="absolute right-3 bottom-3 text-xs text-[var(--text-secondary)] opacity-50">
+          <div className="hidden sm:block absolute right-2 bottom-2 text-[10px] tracking-wide text-[var(--muted)]">
             Shift+Enter 換行
           </div>
         </div>
         <button
           onClick={handleSend}
           disabled={!message.trim() || disabled}
-          className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+          className={`flex-shrink-0 h-11 px-4 rounded-xl flex items-center justify-center gap-2 text-sm font-medium transition-all ${
             !message.trim() || disabled
-              ? 'bg-[var(--bg-card)] text-[var(--text-secondary)] cursor-not-allowed'
-              : 'btn-primary text-white glow'
+              ? 'bg-[rgba(24,32,43,0.06)] text-[var(--muted)] cursor-not-allowed'
+              : 'btn-primary'
           }`}
         >
           {disabled ? (
-            <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
               <path d="M12 2C6.48 2 2 6.48 2 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
           ) : (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
+            <>
+              <span className="hidden sm:inline">送出</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 12h14M13 5l7 7-7 7" />
+              </svg>
+            </>
           )}
         </button>
       </div>
